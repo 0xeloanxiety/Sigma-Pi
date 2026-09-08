@@ -108,9 +108,13 @@ def compute_metrics(p: EvalPrediction):
 # ── Main Training Loop ────────────────────────────────────────────────────────
 
 def main():
-    data_dir = Path("auditor/train/processed_data")
+    # Make path absolute relative to the script to avoid Colab working directory issues
+    script_dir = Path(__file__).parent.resolve()
+    data_dir = script_dir / "processed_data"
+    
     if not data_dir.exists():
         print(f"Error: Could not find {data_dir}. Run prepare_data.py first.")
+        print(f"Current working directory was: {Path.cwd()}")
         return
 
     print("Loading datasets...")

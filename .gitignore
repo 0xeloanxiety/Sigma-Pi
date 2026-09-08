@@ -7,7 +7,6 @@ __pycache__/
 data/SolidiFI-benchmark/
 data/smartbugs-curated/
 data/processed/
-auditor/train/processed_data/
 
 # Model outputs
 checkpoints/
