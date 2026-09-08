@@ -28,9 +28,9 @@ from sklearn.metrics import precision_recall_fscore_support
 MODEL_NAME = "microsoft/codebert-base"
 MAX_LENGTH = 512
 NUM_CLASSES = 4
-EPOCHS = 3
+EPOCHS = 15     # Increased from 3 to 15 to allow convergence on small dataset
 BATCH_SIZE = 8
-LR = 2e-5
+LR = 3e-5       # Slightly higher learning rate
 
 
 # ── Data Loading & Weights ────────────────────────────────────────────────────
