@@ -1,18 +1,23 @@
 .venv/
 __pycache__/
-*.__pycache__.pytest_chache/
+.pytest_cache/
 .ipynb_checkpoints/
 
+# Data
 data/SolidiFI-benchmark/
 data/smartbugs-curated/
 data/processed/
+auditor/train/processed_data/
 
+# Model outputs
 checkpoints/
 *.pt
 *.bin
+auditor/train/model_output/
+auditor/train/final_classifier/
 
+# Env
 .env
 *.env
 
 .DS_Store
-EOF
