@@ -157,6 +157,75 @@ def process_smartbugs() -> List[Dict[str, Any]]:
             
     return dataset
 
+# ── Step 3 (new): Process SmartBugs-wild (Slither-weak augmentation) ─────────
+# CAVEAT: SWC-107 and SWC-104 labels here come from Slither (weak labels).
+# Access control (index 3) is intentionally excluded — stays human-labeled only.
+# These examples augment the train set only. eval.jsonl is never touched.
+
+WILD_LABELS_JSON = OUT_DIR / "wild_slither_labels.json"
+WILD_CONTRACTS_DIR = DATA_DIR / "smartbugs-wild" / "contracts"
+
+
+def process_smartbugs_wild() -> List[Dict[str, Any]]:
+    """
+    Read pre-computed Slither labels (from label_wild.py), run tree-sitter on
+    each contract, map flagged lines → function labels. Returns train examples.
+    """
+    print("Processing SmartBugs-wild (weak-label augmentation)...")
+
+    if not WILD_LABELS_JSON.exists():
+        print(f"  Warning: {WILD_LABELS_JSON} not found. Skipping wild augmentation.")
+        print("  Run: python -m auditor.train.label_wild on Colab first.")
+        return []
+
+    with open(WILD_LABELS_JSON, "r") as f:
+        label_data = json.load(f)
+
+    # Build lookup: filename → {label_idx: [lines]}
+    labels_by_contract: Dict[str, Dict[int, List[int]]] = {}
+    for entry in label_data:
+        name = entry["contract"]
+        # Only keep contracts where Slither actually found something
+        if entry.get("lines_by_idx"):
+            labels_by_contract[name] = {
+                int(k): v for k, v in entry["lines_by_idx"].items()
+            }
+
+    print(f"  Contracts with at least one finding: {len(labels_by_contract)}")
+
+    dataset = []
+    missing = 0
+
+    for contract_name, lines_by_idx in labels_by_contract.items():
+        sol_path = WILD_CONTRACTS_DIR / contract_name
+        if not sol_path.exists():
+            missing += 1
+            continue
+
+        chunks = extract_functions(sol_path)
+        if not chunks:
+            continue
+
+        for chunk in chunks:
+            label = empty_label()
+            for label_idx, flagged_lines in lines_by_idx.items():
+                # label_idx is 0 (SWC-107) or 2 (SWC-104) — never 1 or 3
+                if any(chunk.start_line <= line <= chunk.end_line
+                       for line in flagged_lines):
+                    label[label_idx] = 1
+
+            dataset.append({
+                "contract": contract_name,
+                "function_name": chunk.name,
+                "text": chunk.text,
+                "label": label,
+                "source": "smartbugs_wild_weak",  # document weak-label origin
+            })
+
+    print(f"  Missing .sol files: {missing}")
+    print(f"  Total functions extracted: {len(dataset)}")
+    return dataset
+
 
 # ── Step 3: Dedup and Save ────────────────────────────────────────────────────
 
@@ -195,28 +264,38 @@ def save_jsonl(dataset: List[Dict[str, Any]], path: Path):
 
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    
+
+    # Train: SolidiFI (ground truth) + SmartBugs-wild (Slither weak labels)
     train_raw = process_solidifi()
-    print("Deduplicating SolidiFI...")
+    wild_raw = process_smartbugs_wild()
+    if wild_raw:
+        train_raw = train_raw + wild_raw
+        print(f"\nCombined train set before dedup: {len(train_raw)} functions")
+
+    print("Deduplicating train set...")
     train_clean = dedup_dataset(train_raw)
-    
+
+    # Eval: SmartBugs-curated (human labels only — NEVER augmented)
     eval_raw = process_smartbugs()
-    print("Deduplicating SmartBugs...")
+    print("Deduplicating SmartBugs (eval)...")
     eval_clean = dedup_dataset(eval_raw)
-    
-    # Save them
+
     train_path = OUT_DIR / "train.jsonl"
-    eval_path = OUT_DIR / "eval.jsonl"
-    
+    eval_path  = OUT_DIR / "eval.jsonl"
+
     save_jsonl(train_clean, train_path)
     save_jsonl(eval_clean, eval_path)
-    
+
     print("\nDone!")
     print(f"Saved {len(train_clean)} train examples to {train_path}")
     print(f"Saved {len(eval_clean)} eval examples to {eval_path}")
 
-    # Print class distribution for eval
-    print("\nEval Set Class Distribution (SmartBugs):")
+    print("\nTrain Set Class Distribution:")
+    for i, target in enumerate(TARGET_CLASSES):
+        count = sum(1 for item in train_clean if item["label"][i] == 1)
+        print(f"  {target.title} ({target.swc_id}): {count} vulnerable functions")
+
+    print("\nEval Set Class Distribution (SmartBugs-curated, human labels):")
     for i, target in enumerate(TARGET_CLASSES):
         count = sum(1 for item in eval_clean if item["label"][i] == 1)
         print(f"  {target.title} ({target.swc_id}): {count} vulnerable functions")

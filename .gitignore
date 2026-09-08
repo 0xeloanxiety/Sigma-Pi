@@ -6,6 +6,7 @@ __pycache__/
 # Data
 data/SolidiFI-benchmark/
 data/smartbugs-curated/
+data/smartbugs-wild/
 data/processed/
 
 # Model outputs
@@ -20,3 +21,4 @@ auditor/train/final_classifier/
 *.env
 
 .DS_Store
+final_classifier.zip
