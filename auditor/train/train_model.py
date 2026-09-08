@@ -28,7 +28,7 @@ from sklearn.metrics import precision_recall_fscore_support
 MODEL_NAME = "microsoft/codebert-base"
 MAX_LENGTH = 512
 NUM_CLASSES = 4
-EPOCHS = 15     # Increased from 3 to 15 to allow convergence on small dataset
+EPOCHS = 4     
 BATCH_SIZE = 8
 LR = 3e-5       # Slightly higher learning rate
 
@@ -159,6 +159,7 @@ def main():
         learning_rate=LR,
         per_device_train_batch_size=BATCH_SIZE,
         per_device_eval_batch_size=BATCH_SIZE,
+        gradient_accumulation_steps=2, # Added: effective batch size = 16 for better gradients
         num_train_epochs=EPOCHS,
         weight_decay=0.01,
         load_best_model_at_end=True,
